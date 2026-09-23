@@ -1,7 +1,7 @@
 /**
  * sutra-cover-lib.js — 典籍封面編排的核心 library（純邏輯、不碰 DOM）
  *
- * 版式來源：InProgress/public/lib/cover.html（owner 的原型）。
+ * 版式來源：InProgress/public/lib/old-version/cover-260923.html（owner 的原型；2026-09-24 由 lib/cover.html 移入）。
  *   - 直排（vertical-rl、upright），題名在右、譯者／作者在左，兩欄**底部對齊**、水平置中。
  *   - 題名：字級 36pt、字距 1.25em，並以 margin-inline-end = −字距 抵銷末字後多出的字距
  *     ——**那個抵銷與字距是同一個數字**，本 lib 以 trailingCompensation() 一處給出。

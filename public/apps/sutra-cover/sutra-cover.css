@@ -2,7 +2,7 @@
    sutra-cover.css — 本頁樣式 + 主題 token
    Materialize 元件的深色交給共用 materialize-dark.css（DESIGN_GUIDELINES §5.1）；
    本檔只管非 Materialize 的自訂元素。
-   封面版式（.sheet 以內）照 InProgress/public/lib/cover.html，數值來源見 sutra-cover-lib.js 檔頭。
+   封面版式（.sheet 以內）照 InProgress/public/lib/old-version/cover-260923.html（原型），數值來源見 sutra-cover-lib.js 檔頭。
    ========================================================================== */
 
 /* ── 主題 token（§5.1 家族標準）───────────────────────────────────────── */

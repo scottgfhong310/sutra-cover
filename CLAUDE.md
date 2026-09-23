@@ -105,4 +105,4 @@ InProgress 的 `app.js` 只多兩行（`require('./routes/sutra-cover')` ＋ `ap
 **不要**蓋掉它的 `app.js`／`upload.js`；**不要**預先建 `public/upload/sutra-cover/`（第一次儲存時惰性建立）。
 改了 route 要重啟 3001——**重啟由 owner 來**。
 
-版式的前身是 InProgress 的 `public/lib/cover.html`（owner 的原型，未動）。
+版式的前身是 InProgress 的 `public/lib/cover.html`（owner 的原型）——**2026-09-24 已移到 `public/lib/old-version/cover-260923.html`**（owner 指示；日期後綴＝原檔修改日，比照 `circle-text` 的先例）。
