@@ -16,6 +16,7 @@ I18n.register('ja', {
   'form.ls': '字間 (em)',
   'btn.reset': '文字サイズと字間を戻す',
   'btn.print': '印刷',
+  'btn.clearText': '番号・題名・著者をクリア',
 
   /* 版面 */
   'status.legend': 'レイアウト',
@@ -26,6 +27,7 @@ I18n.register('ja', {
   'status.about': '約 {n}',
   'status.charUnit': '字',
   'fit.empty': '題名が空です——訳者／著者だけが印刷されます。',
+  'fit.blank': '題名も訳者／著者も空です——印刷すると白紙になります。',
   'fit.over': '題名が用紙の下端を超えています。はみ出した文字は切れます。文字サイズか字間を小さくしてください。',
   'fit.tight': '題名が用紙の下端に近づいています。',
   'font.yes': 'フォント：{f}（魏碑）を使用中。',

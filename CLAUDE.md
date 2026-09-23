@@ -1,6 +1,6 @@
 # CLAUDE.md — sutra-cover
 
-> 版本 v1.1｜最後更新 2026-09-23
+> 版本 v1.2｜最後更新 2026-09-24
 
 典籍封面編排：輸入編號、題名與譯者／作者，直排排在 A4 上直接列印；封面可存、右側有清單。
 **單頁、零資料庫**——資料層是 DATABASE_GUIDELINES §0 的**層 1**（一份封面一個 JSON 檔），
@@ -38,7 +38,7 @@ public/upload/sutra-cover/      <編號>.json（.gitignore 排除，只留 .gitk
 
 ```bash
 npm install && npm start        # → http://localhost:3000/apps/sutra-cover/
-npm run verify                  # 33 條契約檢查（第 28–33 條在暫存資料夾裡實跑 API），全過 exit 0
+npm run verify                  # 36 條契約檢查（第 31–36 條在暫存資料夾裡實跑 API），全過 exit 0
 ```
 
 ## 這支的 canon 重點
@@ -58,16 +58,20 @@ npm run verify                  # 33 條契約檢查（第 28–33 條在暫存�
 - **字型偵測是三態**（用上／沒用上／量不出來），以 canvas 像素比對，自帶 serif vs sans-serif 對照組。
   `document.fonts.check()` 對任何字型都回 `true`，**不能用**。
 - **WeiBei TC 是 macOS 系統字型（文鼎），沒有再散布授權**——只以族名引用、**永遠不放進 repo**。
-- **JS 原始碼裡的 U+3000 要寫成 `\u3000`**：Claude Code 的寫檔工具會把轉義轉成實體字元（第 26 條）——本檔這一行自己就中過一次。
+- **JS 原始碼裡的 U+3000 要寫成 `\u3000`**：Claude Code 的寫檔工具會把轉義轉成實體字元（第 29 條）——本檔這一行自己就中過一次。
 - **儲存：一個編號一份**（owner 拍板）。前端先試新建、**409 才問要不要覆寫**；後端新建用 `fs.open(…,'wx')`
-  原子建立（第 30 條：20 個併發只有 1 個成功）——「先查清單再決定」是 TOCTOU（§3.3），不要改回去。
-  覆寫先 `.bak`、刪除是**移進 `.bak/`**（第 28／32 條）。
+  原子建立（第 33 條：20 個併發只有 1 個成功）——「先查清單再決定」是 TOCTOU（§3.3），不要改回去。
+  覆寫先 `.bak`、刪除是**移進 `.bak/`**（第 31／35 條）。
 - **編號一律轉大寫**：macOS 的檔名不分大小寫，不轉的話 `t2428` 與 `T2428` 會互相覆寫（第 11 條）。
   **編號不印在封面上**（owner 拍板）。
-- **後端的驗證載入前端 lib**（`routes/sutra-cover.js` 以 `vm` 跑 `sutra-cover-lib.js`）——規則只有一份（第 24 條）。
+- **後端的驗證載入前端 lib**（`routes/sutra-cover.js` 以 `vm` 跑 `sutra-cover-lib.js`）——規則只有一份（第 27 條）。
   改 `normalize`／`cleanCode`／`isValidCode` 等於同時改兩邊，**不要在 route 裡補一份自己的**。
-- **讀不進來的檔列在 `skipped`，畫面上講出來**（第 31 條）——安靜地少一筆與「沒存過」長得一模一樣。
-- 右側清單的 `sidenav-open` 在 **`onCloseStart`** 拿掉（第 23 條）；`onCloseEnd` 在背景分頁永遠不來。
+- **讀不進來的檔列在 `skipped`，畫面上講出來**（第 34 條）——安靜地少一筆與「沒存過」長得一模一樣。
+- 右側清單的 `sidenav-open` 在 **`onCloseStart`** 拿掉（第 26 條）；`onCloseEnd` 在背景分頁永遠不來。
+- **清除鈕（`#btn-clear`，圖示 `clear`）在內容卡的「列印」正前方**（第 23 條），**只清編號／題名／作者三欄**
+  ——字級、字距不動、不碰任何檔案（第 24 條）；純圖示鈕的 `aria-label` 由 `applyI18n()` 補（`I18n.apply` 碰不到它）。
+- 三欄的 `.text-field` 把 `margin-top` 由 14px 加到 28px（第 25 條）：Materialize 的 label 浮起時會上移進 margin 裡，
+  14px 下 label 上緣正好貼齊前一個元素（實量 0px）；28px 之後是 14px。
 - 側鍵排序照 §5.5／§5.6：`#setting-menu`（`folder_open`）→ `#setting-save` → app 工具 → `#setting-mode` → `#setting-lang`（第 22 條）。
 - 共用文案照 §6 正典表逐字抄（第 20 條）。偏離要在 `db_inprogress.meta_i18n.fd_note` 寫理由
   （`tool.menu`／`side.header` 刻意寫「封面清單」／「典籍封面」而不是多數的「檔案清單」，理由已登記）。
@@ -75,7 +79,7 @@ npm run verify                  # 33 條契約檢查（第 28–33 條在暫存�
 ## 複製件登記
 
 以下檔案是**家族共用件的 byte-identical 複製件**——改就改權威版再同步各複製點，
-**不要在本 repo 就地改**（`npm run verify` 第 27 條會比對）：
+**不要在本 repo 就地改**（`npm run verify` 第 30 條會比對）：
 
 | 檔案 | 權威版 |
 |---|---|

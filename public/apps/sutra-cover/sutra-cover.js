@@ -160,7 +160,8 @@
     el.m.max.textContent = t('status.about', { n: Lib.maxChars(p.size, p.ls) });
 
     var msg = '';
-    if (!p.title) msg = '<span class="is-warn">' + esc(t('fit.empty')) + '</span>';
+    if (!p.title && !p.author) msg = '<span class="is-warn">' + esc(t('fit.blank')) + '</span>';
+    else if (!p.title) msg = '<span class="is-warn">' + esc(t('fit.empty')) + '</span>';
     else if (state === 'over') msg = '<span class="is-danger">' + esc(t('fit.over')) + '</span>';
     else if (state === 'tight') msg = '<span class="is-warn">' + esc(t('fit.tight')) + '</span>';
     el.fitMessage.innerHTML = msg;
@@ -302,6 +303,15 @@
     });
   }
 
+  /** 清除：只清編號／題名／作者三欄（字級與字距不動、不碰任何檔案），並脫離目前那一份 */
+  function clearText() {
+    [el.code, el.title, el.author].forEach(function (input) { setValue(input, ''); });
+    if (window.M && M.updateTextFields) M.updateTextFields();
+    setCurrent(null);
+    render();
+    el.code.focus();
+  }
+
   function deleteCover(code) {
     var c = covers.filter(function (x) { return x.code === code; })[0];
     if (!window.confirm(t('confirm.delete', { c: code, t: (c && c.title) || '' }))) return;
@@ -334,6 +344,12 @@
   }
 
   // ── 初始化 ────────────────────────────────────────────────────────────
+
+  /** I18n.apply 之外，補上它碰不到的 aria-label（純圖示鈕沒有可讀的文字） */
+  function applyI18n() {
+    window.I18n.apply();
+    $('btn-clear').setAttribute('aria-label', t('btn.clearText'));
+  }
 
   function cacheEls() {
     ['code', 'title', 'author', 'size', 'ls'].forEach(function (k) { el[k] = $(k); });
@@ -410,6 +426,7 @@
     });
     el.navFilter.addEventListener('input', applyNavFilter);
 
+    $('btn-clear').addEventListener('click', function (e) { e.preventDefault(); clearText(); });
     $('btn-print').addEventListener('click', function (e) { e.preventDefault(); doPrint(); });
     $('setting-print').addEventListener('click', doPrint);
 
@@ -469,7 +486,7 @@
     bindInputs();
     bindTools();
 
-    window.I18n.apply();
+    applyI18n();
     var theme = 'dark';
     try { theme = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) { }
     applyTheme(theme);
@@ -479,7 +496,7 @@
     fitSheetToFrame();
 
     document.addEventListener('i18n:changed', function () {
-      window.I18n.apply();
+      applyI18n();
       render();
       renderList();
     });

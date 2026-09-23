@@ -238,6 +238,28 @@ check('側鍵順序：#setting-menu（folder_open）→ app 工具 → #setting-
   assert(/id="setting-menu"[^>]*>\s*<i class="material-icons">folder_open</.test(html), '#setting-menu 不是 folder_open');
 });
 
+check('清除鈕：在內容卡的「列印」正前方、圖示 clear（§5.6 只清畫面）', () => {
+  const acts = (html.match(/<div class="form-actions">([\s\S]*?)<\/div>/) || [])[1] || '';
+  const ids = [...acts.matchAll(/id="([\w-]+)"/g)].map((m) => m[1]);
+  assert(ids.indexOf('btn-clear') >= 0 && ids.indexOf('btn-clear') + 1 === ids.indexOf('btn-print'), ids.join(' → '));
+  assert(/id="btn-clear"[\s\S]*?<i class="material-icons">clear<\/i>/.test(acts), '圖示不是 clear');
+});
+
+check('清除只清編號／題名／作者三欄——字級、字距不動，也不碰任何檔案', () => {
+  const m = ctrl.match(/function clearText\(\) \{([\s\S]*?)\n  \}/);
+  assert(m, '找不到 clearText');
+  const body = m[1];
+  ['el.code', 'el.title', 'el.author'].forEach((k) => assert(body.includes(k), `沒清 ${k}`));
+  assert(!/el\.(size|ls|sizeRange|lsRange)\b/.test(body), '動到了字級／字距');
+  assert(!/deleteCover|saveCover|fetch\(/.test(body), '清除碰到了伺服器');
+});
+
+check('編號／題名／作者三欄都掛 .text-field（與前一個元素的間距，owner 指定加大）', () => {
+  ['code', 'title', 'author'].forEach((id) => assert(
+    new RegExp('<div class="input-field text-field">\\s*<input id="' + id + '"').test(html), `${id} 沒有 .text-field`));
+  assert(/\.card\.panel \.text-field \{ margin-top: 28px; \}/.test(css), '間距規則不見了');
+});
+
 check('右側清單：Sidenav edge right，關閉的 class 綁 onCloseStart（onCloseEnd 在背景分頁永遠不來）', () => {
   assert(/M\.Sidenav\.init\([\s\S]*?edge:\s*'right'/.test(ctrl), 'edge 不是 right');
   assert(/onCloseStart:[^\n]*sidenav-open/.test(ctrl), '沒有在 onCloseStart 拿掉 sidenav-open');

@@ -78,18 +78,18 @@
           <section class="card panel" aria-labelledby="form-title">
             <h2 class="panel-title" id="form-title" data-i18n="form.legend">內容</h2>
 
-            <div class="input-field">
+            <div class="input-field text-field">
               <input id="code" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" />
               <label for="code" data-i18n="form.code">典籍編號</label>
               <span class="helper-text" data-i18n="form.codeHelp">例：T2428；儲存時的鍵（英數與 . _ -，自動轉大寫）</span>
             </div>
 
-            <div class="input-field">
+            <div class="input-field text-field">
               <input id="title" type="text" autocomplete="off" spellcheck="false" />
               <label for="title" data-i18n="form.title">典籍題名</label>
             </div>
 
-            <div class="input-field">
+            <div class="input-field text-field">
               <input id="author" type="text" autocomplete="off" spellcheck="false" />
               <label for="author" data-i18n="form.author">譯者／作者</label>
               <span class="helper-text" data-i18n="form.authorHelp">全形空格（　）照原樣保留</span>
@@ -119,6 +119,8 @@
 
             <div class="form-actions">
               <a href="#!" id="btn-reset" class="btn-flat waves-effect" data-i18n="btn.reset">還原字級與字距</a>
+              <a href="#!" id="btn-clear" class="btn-flat waves-effect btn-clear" data-i18n-title="btn.clearText"
+                title="清除編號、題名、作者"><i class="material-icons">clear</i></a>
               <a href="#!" id="btn-print" class="btn waves-effect waves-light"><i
                   class="material-icons left">print</i><span data-i18n="btn.print">列印</span></a>
             </div>

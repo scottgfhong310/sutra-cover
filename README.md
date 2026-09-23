@@ -1,6 +1,6 @@
 # sutra-cover
 
-> 版本 v1.1｜最後更新 2026-09-23
+> 版本 v1.2｜最後更新 2026-09-24
 
 [English](README.md) ｜ [繁體中文](README.zh-Hant.md) ｜ [日本語](README.ja.md)
 
@@ -30,6 +30,7 @@ by side, the title column, author column, bottom alignment and column gap match 
   `markdown-reader`: filter by number, title or author, click to load, delete (moved to a backup).
   One number = one cover; saving an existing number asks before overwriting. The number is data only —
   it is not printed on the cover.
+- A **clear** button next to Print empties the number, title and author (size and spacing stay).
 - Deep links: everything lives in the URL (`?c=&t=&a=&s=&ls=`); `?c=T2428` alone opens that saved cover.
 - Light / dark theme (prints on white either way), zh-Hant / en / ja interface.
 
@@ -38,7 +39,7 @@ by side, the title column, author column, bottom alignment and column gap match 
 ```bash
 npm install
 npm start          # → http://localhost:3000/apps/sutra-cover/
-npm run verify     # 33 contract checks (6 of them run the API against a temp folder)
+npm run verify     # 36 contract checks (6 of them run the API against a temp folder)
 ```
 
 Node ≥ 18. `PORT` overrides the port.

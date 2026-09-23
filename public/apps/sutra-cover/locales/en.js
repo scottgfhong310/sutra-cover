@@ -16,6 +16,7 @@ I18n.register('en', {
   'form.ls': 'Spacing (em)',
   'btn.reset': 'Reset size & spacing',
   'btn.print': 'Print',
+  'btn.clearText': 'Clear number, title and author',
 
   /* Layout */
   'status.legend': 'Layout',
@@ -26,6 +27,7 @@ I18n.register('en', {
   'status.about': '≈ {n}',
   'status.charUnit': 'chars',
   'fit.empty': 'The title is empty — only the translator / author will print.',
+  'fit.blank': 'Both the title and the translator / author are empty — the page would print blank.',
   'fit.over': 'The title runs past the bottom of the page; the overflow will be cut off. Reduce the size or spacing.',
   'fit.tight': 'The title is close to the bottom of the page.',
   'font.yes': 'Font: {f} (Weibei) is in use.',

@@ -110,6 +110,11 @@ body {
   color: var(--muted);
 }
 
+/* 編號／題名／作者三欄：與前一個元素多留一點距離。
+   Materialize 的 label 浮起後會往上移進 margin-top 裡——14px 的預設值下，label 上緣正好貼齊
+   前一個元素的下緣（實量間距 0px）。加到 28px 後 label 上方留出 14px。 */
+.card.panel .text-field { margin-top: 28px; }
+
 /* 滑桿＋數字框同一列：拖拉粗調、數字精調（兩者互相同步） */
 .slider-row {
   display: flex;
@@ -138,10 +143,20 @@ body {
 }
 
 .form-actions .btn {
-  margin-left: auto;
   background-color: var(--accent);
   color: #fff;
 }
+
+/* 清除鈕（只清編號／題名／作者三欄，不動檔案）：靠右、緊鄰列印鈕。
+   margin-left:auto 只給它一個——兩顆都給的話剩餘空間會被平分，它就浮到中間去。 */
+.form-actions .btn-clear {
+  margin-left: auto;
+  padding: 0 10px;
+  color: var(--muted);
+}
+.form-actions .btn-clear:hover,
+.form-actions .btn-clear:focus { color: var(--text); background-color: transparent; }
+.form-actions .btn-clear .material-icons { line-height: 36px; }
 
 /* dark 的 accent 是淺藍（#90caf9），白字只有 1.7:1——深色模式改深字 */
 [data-theme="dark"] .form-actions .btn { color: var(--bg); }

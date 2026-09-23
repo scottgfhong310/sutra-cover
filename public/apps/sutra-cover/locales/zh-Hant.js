@@ -16,6 +16,7 @@ I18n.register('zh-Hant', {
   'form.ls': '字距 (em)',
   'btn.reset': '還原字級與字距',
   'btn.print': '列印',
+  'btn.clearText': '清除編號、題名、作者',
 
   /* 版面 */
   'status.legend': '版面',
@@ -26,6 +27,7 @@ I18n.register('zh-Hant', {
   'status.about': '約 {n}',
   'status.charUnit': '字',
   'fit.empty': '題名是空的——只會印出譯者／作者。',
+  'fit.blank': '題名與譯者／作者都是空的——印出來會是一張白紙。',
   'fit.over': '題名超出紙張下緣，超出的字會被裁掉。請縮小字級或字距。',
   'fit.tight': '題名已貼近紙張下緣。',
   'font.yes': '字型：{f}（魏碑）已使用。',
