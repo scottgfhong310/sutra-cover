@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Sutra Cover</title>
+
+  <!-- App icon / favicon（icons/ 內，一律相對路徑，獨立版與 InProgress 鏡像共用）§5.5 -->
+  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+  <link rel="manifest" href="./icons/manifest.json" />
+  <meta name="theme-color" content="#0f1115" />
+
+  <!-- 防主題閃爍：render 前先讀 localStorage 設好 data-theme 與 dark-mode/light-mode class（§5.1 坑） -->
+  <script>
+    try {
+      var t = localStorage.getItem('sutra-cover-theme') || 'dark';
+      var r = document.documentElement;
+      r.dataset.theme = t;
+      r.classList.toggle('dark-mode', t === 'dark');
+      r.classList.toggle('light-mode', t === 'light');
+    } catch (e) { }
+  </script>
+
+  <!-- Materialize 1.0.0 + Material Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" />
+  <!-- Materialize 元件深色（家族共用；在 materialize.css 之後、本頁樣式之前） -->
+  <link rel="stylesheet" href="./materialize-dark.css" />
+
+  <link rel="stylesheet" href="./sutra-cover.css" />
+  <link rel="stylesheet" href="./side-tool.css" />
+</head>
+
+<body data-i18n-doctitle="title.page">
+
+  <main>
+    <div class="app-container">
+
+      <header class="topbar">
+        <h1 data-i18n="app.title">典籍封面</h1>
+        <div class="sub" data-i18n="app.sub">輸入題名與譯者／作者，直排排在 A4 上直接列印</div>
+      </header>
+
+      <div class="row layout-row">
+
+        <!-- ── 輸入 ────────────────────────────────────────────────────── -->
+        <div class="col s12 l4 form-col">
+          <section class="card panel" aria-labelledby="form-title">
+            <h2 class="panel-title" id="form-title" data-i18n="form.legend">內容</h2>
+
+            <div class="input-field">
+              <input id="title" type="text" autocomplete="off" spellcheck="false" />
+              <label for="title" data-i18n="form.title">典籍題名</label>
+            </div>
+
+            <div class="input-field">
+              <input id="author" type="text" autocomplete="off" spellcheck="false" />
+              <label for="author" data-i18n="form.author">譯者／作者</label>
+              <span class="helper-text" data-i18n="form.authorHelp">全形空格（　）照原樣保留</span>
+            </div>
+
+            <h2 class="panel-title sub-title" data-i18n="form.titleStyle">題名樣式</h2>
+
+            <div class="slider-row">
+              <p class="range-field">
+                <input id="size-range" type="range" data-i18n-title="form.size" />
+              </p>
+              <div class="input-field">
+                <input id="size" type="number" inputmode="decimal" />
+                <label for="size" data-i18n="form.size">字級 (pt)</label>
+              </div>
+            </div>
+
+            <div class="slider-row">
+              <p class="range-field">
+                <input id="ls-range" type="range" data-i18n-title="form.ls" />
+              </p>
+              <div class="input-field">
+                <input id="ls" type="number" inputmode="decimal" />
+                <label for="ls" data-i18n="form.ls">字距 (em)</label>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <a href="#!" id="btn-reset" class="btn-flat waves-effect" data-i18n="btn.reset">還原字級與字距</a>
+              <a href="#!" id="btn-print" class="btn waves-effect waves-light"><i
+                  class="material-icons left">print</i><span data-i18n="btn.print">列印</span></a>
+            </div>
+          </section>
+
+          <section class="card panel" aria-labelledby="status-title">
+            <h2 class="panel-title" id="status-title" data-i18n="status.legend">版面</h2>
+            <div id="fit-message" class="fit-message" role="status" aria-live="polite"></div>
+            <dl class="metrics">
+              <dt data-i18n="status.chars">題名字數</dt>
+              <dd><span class="metric" id="m-chars">—</span></dd>
+              <dt data-i18n="status.ratio">佔可用高度</dt>
+              <dd><span class="metric" id="m-ratio">—</span> <span class="unit">%</span>
+                <span class="alt" id="m-span"></span></dd>
+              <dt data-i18n="status.max">這組字級／字距約可容納</dt>
+              <dd><span class="metric" id="m-max">—</span> <span class="unit" data-i18n="status.charUnit">字</span></dd>
+            </dl>
+            <div id="font-message" class="font-message"></div>
+          </section>
+        </div>
+
+        <!-- ── 預覽（＝列印內容） ─────────────────────────────────────── -->
+        <div class="col s12 l8 preview-col">
+          <div class="sheet-frame" id="sheet-frame">
+            <div class="sheet" id="sheet">
+              <div class="cover" id="cover">
+                <div class="vertical cv-title" id="cv-title"></div>
+                <div class="vertical cv-author" id="cv-author"></div>
+              </div>
+              <div class="page-limit" aria-hidden="true"></div>
+            </div>
+          </div>
+          <p class="hint preview-hint" data-i18n="preview.hint">預覽即列印內容（A4 直式）；虛線是紙內留邊，題名超出下緣會被裁掉。</p>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 右側浮動工具列（§5.5 排序：app 工具 → mode → lang）──────────── -->
+  <div class="side-tools">
+    <div id="setting-print" class="side-tool" data-i18n-title="tool.print" title="列印">
+      <i class="material-icons">print</i>
+    </div>
+    <div id="setting-link" class="side-tool" data-i18n-title="tool.copyLink" title="複製這份封面的連結">
+      <i class="material-icons">link</i>
+    </div>
+    <div id="setting-mode" class="side-tool" data-i18n-title="tool.mode" title="切換 light / dark">
+      <i class="material-icons">dark_mode</i>
+    </div>
+    <div id="setting-lang" class="side-tool" data-i18n-title="tool.lang" title="語言">
+      <i class="material-icons">translate</i>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+  <script src="./sutra-cover-lib.js"></script>
+  <script src="./i18n.js"></script>
+  <script src="./locales/zh-Hant.js"></script>
+  <script src="./locales/en.js"></script>
+  <script src="./locales/ja.js"></script>
+  <script src="./side-tool.js"></script>   <!-- 共用 utility：側鍵行為（check 微回饋＋溢出收納） -->
+  <script src="./sutra-cover.js"></script>
+</body>
+
+</html>

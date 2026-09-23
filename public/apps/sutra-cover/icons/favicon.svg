@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- sutra-cover：一張封面紙，右側直排題簽、左側細一欄作者（同本 app 的版式） -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1b2030"/>
+  <rect x="14" y="8" width="36" height="48" rx="3" fill="#f3ecdc"/>
+  <rect x="33" y="14" width="9" height="34" rx="1.5" fill="#8c1d18"/>
+  <rect x="35.5" y="18" width="4" height="4" fill="#f3ecdc"/>
+  <rect x="35.5" y="25" width="4" height="4" fill="#f3ecdc"/>
+  <rect x="35.5" y="32" width="4" height="4" fill="#f3ecdc"/>
+  <rect x="24" y="36" width="3" height="12" rx="1" fill="#3a3a3a"/>
+</svg>
