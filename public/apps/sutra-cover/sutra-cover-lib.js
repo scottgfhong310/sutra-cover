@@ -15,11 +15,30 @@
  * 資料：題名與作者是**資料**，不翻譯；全形空格（U+3000）原樣保留——
  * 刻意不用 String.prototype.trim()，它會把 U+3000 一起剝掉。
  *
- * 後端 API：無（零後端，見 app.js）。輸入存在網址列（?t=&a=&s=&ls=），複製連結＝存檔。
+ * 儲存（owner 2026-09-23 追加）：一份封面＝ public/upload/sutra-cover/<編號>.json，**一個編號一份**。
+ *   編號（例 T2428）是鍵也是檔名 ⇒ 限 ASCII 英數與 . _ -，並一律**轉大寫**——macOS 的檔案系統
+ *   不分大小寫，t2428.json 與 T2428.json 是同一個檔，不轉的話兩個「不同的」鍵會互相覆寫。
+ *   編號只是資料、**不印在封面上**（owner 拍板）。
+ *   ⚠️ 後端 routes/sutra-cover.js **載入本檔**來驗證與正規化——規則只有這一份實作。
+ *
+ * 後端 API（/api/sutra-cover）：
+ *   GET    /covers              → { ok, covers:[{ code,title,author,size,ls,createdAt,updatedAt }], skipped }
+ *   GET    /covers/:code        → { ok, cover }
+ *   PUT    /covers/:code        body { title,author,size,ls, overwrite } → { ok, cover, created }
+ *                                已存在且 overwrite 不為 true → 409 { ok:false, error:'exists' }
+ *   DELETE /covers/:code        → { ok }（檔案移進 .bak/，不是真的刪掉）
+ * 輸入也存在網址列（?c=&t=&a=&s=&ls=），複製連結仍然是一種存檔。
  *
  * Public API（window.SutraCoverLib）：
- *   DEFAULTS, LIMITS, AUTHOR, PAGE, TOP_PX, FONT_FAMILY
- *   normalize(input)               → { title, author, size, ls }（夾值、NaN 退回預設）
+ *   DEFAULTS, LIMITS, AUTHOR, PAGE, TOP_PX, FONT_FAMILY, CODE_RE
+ *   normalize(input)               → { code, title, author, size, ls }（夾值、NaN 退回預設）
+ *   cleanCode(s)                   → 去空白、轉大寫（不驗證——打字中的值照留）
+ *   isValidCode(code)              → 能不能當鍵／檔名
+ *   toRecord(params)               → 存檔用的物件（欄位固定、順序固定）
+ *   compareCode(a, b)              → 數字感知排序（T262 在 T2428 前面）
+ *   matchCover(cover, q)           → 篩選：編號／題名／作者的子字串（不分大小寫）
+ *   listCovers() → { covers, skipped } / getCover(code) / saveCover(params, overwrite) / deleteCover(code)
+ *                                  → Promise；失敗 reject(Error)，409 時 err.code === 'exists'
  *   cleanText(s)                   → 去掉換行與控制字元、截長；保留全形空格
  *   parseQuery(search)             → 網址帶了的那幾個欄位（部分物件）
  *   buildQuery(params, baseSearch) → '?…&t=…&a=…&s=…&ls=…'（保留 baseSearch 裡其他參數）
@@ -35,6 +54,7 @@
   'use strict';
 
   var DEFAULTS = {
+    code: 'T2428',
     title: '即身成佛義',
     author: '遍照金剛\u3000撰',      // 中間為全形空格（U+3000），同原型
     size: 36,                        // pt
@@ -44,8 +64,13 @@
   var LIMITS = {
     size: { min: 8, max: 96, step: 0.5 },
     ls: { min: 0, max: 3, step: 0.05 },
-    text: 200                        // 題名／作者的長度上限（碼位）
+    text: 200,                       // 題名／作者的長度上限（碼位）
+    code: 32                         // 編號長度上限
   };
+
+  /** 編號：開頭英數、其後英數與 . _ -，最長 32；另擋 '..'（見 isValidCode） */
+  var CODE_RE = /^[A-Z0-9][A-Z0-9._-]{0,31}$/;
+  var API = '/api/sutra-cover';
 
   /** 譯者／作者欄：照原型固定、不開放調整 */
   var AUTHOR = { size: 16, ls: 0.2, padBottom: 0.3 };
@@ -107,6 +132,16 @@
 
   function countChars(s) { return Array.from(String(s || '')).length; }
 
+  /** 編號清理：拿掉所有空白、轉大寫。**不驗證**——使用者打到一半的值要照留在欄位裡 */
+  function cleanCode(s) {
+    if (s == null) return '';
+    return String(s).replace(/\s+/g, '').toUpperCase().slice(0, LIMITS.code);
+  }
+
+  function isValidCode(code) {
+    return typeof code === 'string' && CODE_RE.test(code) && code.indexOf('..') < 0;
+  }
+
   // ── 參數 ──────────────────────────────────────────────────────────────
 
   /**
@@ -117,6 +152,7 @@
   function normalize(input) {
     var i = input || {};
     return {
+      code: i.code === undefined ? DEFAULTS.code : cleanCode(i.code),
       title: i.title === undefined ? DEFAULTS.title : cleanText(i.title),
       author: i.author === undefined ? DEFAULTS.author : cleanText(i.author),
       size: toNumber(i.size, DEFAULTS.size, LIMITS.size),
@@ -124,7 +160,7 @@
     };
   }
 
-  var QUERY_KEYS = { t: 'title', a: 'author', s: 'size', ls: 'ls' };
+  var QUERY_KEYS = { c: 'code', t: 'title', a: 'author', s: 'size', ls: 'ls' };
 
   function parseQuery(search) {
     var out = {};
@@ -143,6 +179,7 @@
     var p = normalize(params);
     var q = new URLSearchParams(baseSearch || '');
     Object.keys(QUERY_KEYS).forEach(function (k) { q.delete(k); });
+    q.set('c', p.code);
     q.set('t', p.title);
     q.set('a', p.author);
     q.set('s', String(p.size));
@@ -183,6 +220,88 @@
     return 'ok';
   }
 
+  // ── 封面記錄 ──────────────────────────────────────────────────────────
+
+  function toRecord(params) {
+    var p = normalize(params);
+    return { code: p.code, title: p.title, author: p.author, size: p.size, ls: p.ls };
+  }
+
+  /** 數字感知：把連續數字當數字比（T262 < T2428 < X0001），其餘逐字比 */
+  function compareCode(a, b) {
+    var re = /(\d+)|(\D+)/g;
+    var xa = String(a).match(re) || [], xb = String(b).match(re) || [];
+    for (var i = 0; i < Math.min(xa.length, xb.length); i++) {
+      var na = /^\d/.test(xa[i]), nb = /^\d/.test(xb[i]);
+      if (na && nb) {
+        var d = Number(xa[i]) - Number(xb[i]);
+        if (d) return d;
+        if (xa[i].length !== xb[i].length) return xa[i].length - xb[i].length;
+      } else if (xa[i] !== xb[i]) {
+        return xa[i] < xb[i] ? -1 : 1;
+      }
+    }
+    return xa.length - xb.length;
+  }
+
+  function matchCover(cover, q) {
+    var needle = String(q || '').trim().toLowerCase();
+    if (!needle) return true;
+    return [cover.code, cover.title, cover.author].some(function (v) {
+      return String(v || '').toLowerCase().indexOf(needle) >= 0;
+    });
+  }
+
+  // ── 與伺服器溝通 ──────────────────────────────────────────────────────
+
+  function bust(url) { return url + (url.indexOf('?') < 0 ? '?' : '&') + '_=' + Date.now(); }
+
+  function request(method, url, body) {
+    var opt = { method: method, cache: 'no-store', headers: {} };
+    if (body !== undefined) {
+      opt.headers['Content-Type'] = 'application/json';
+      opt.body = JSON.stringify(body);
+    }
+    return fetch(method === 'GET' ? bust(url) : url, opt).then(function (res) {
+      return res.json().catch(function () { return { ok: false, error: 'HTTP ' + res.status }; })
+        .then(function (j) {
+          if (res.ok && j && j.ok) return j;
+          var err = new Error((j && j.error) || ('HTTP ' + res.status));
+          err.code = j && j.error;
+          err.status = res.status;
+          throw err;
+        });
+    });
+  }
+
+  function codePath(code) { return API + '/covers/' + encodeURIComponent(code); }
+
+  /** → { covers（依編號排序）, skipped（讀不進來的檔名；要在畫面上講出來，不是安靜地少幾筆） } */
+  function listCovers() {
+    return request('GET', API + '/covers').then(function (j) {
+      return {
+        covers: (j.covers || []).slice().sort(function (a, b) { return compareCode(a.code, b.code); }),
+        skipped: j.skipped || []
+      };
+    });
+  }
+
+  function getCover(code) {
+    return request('GET', codePath(code)).then(function (j) { return j.cover; });
+  }
+
+  function saveCover(params, overwrite) {
+    var r = toRecord(params);
+    if (!isValidCode(r.code)) return Promise.reject(Object.assign(new Error('invalid code'), { code: 'invalid-code' }));
+    return request('PUT', codePath(r.code), {
+      title: r.title, author: r.author, size: r.size, ls: r.ls, overwrite: overwrite === true
+    });
+  }
+
+  function deleteCover(code) {
+    return request('DELETE', codePath(code));
+  }
+
   window.SutraCoverLib = {
     DEFAULTS: DEFAULTS,
     LIMITS: LIMITS,
@@ -192,7 +311,17 @@
     TOP_PX: TOP_PX,
     PAGE: PAGE,
     FONT_FAMILY: FONT_FAMILY,
+    CODE_RE: CODE_RE,
     normalize: normalize,
+    cleanCode: cleanCode,
+    isValidCode: isValidCode,
+    toRecord: toRecord,
+    compareCode: compareCode,
+    matchCover: matchCover,
+    listCovers: listCovers,
+    getCover: getCover,
+    saveCover: saveCover,
+    deleteCover: deleteCover,
     cleanText: cleanText,
     parseQuery: parseQuery,
     buildQuery: buildQuery,

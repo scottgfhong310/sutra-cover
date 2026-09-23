@@ -6,6 +6,8 @@ I18n.register('en', {
 
   /* Input */
   'form.legend': 'Content',
+  'form.code': 'Text number',
+  'form.codeHelp': 'e.g. T2428; the key used when saving (letters, digits, . _ -; upper-cased)',
   'form.title': 'Title',
   'form.author': 'Translator / Author',
   'form.authorHelp': 'Full-width spaces (　) are kept as typed, e.g. 遍照金剛　撰',
@@ -34,16 +36,35 @@ I18n.register('en', {
   'preview.hint': 'The preview is exactly what prints (A4 portrait); the dashed line is the page margin, and anything past the bottom is cut off. When printing, set margins to “None” or “Default” and turn off headers and footers.',
   'print.docTitle': 'Cover: {t}',
 
+  /* List */
+  'side.header': 'Covers',
+  'side.filter': 'Filter by number, title, author…',
+  'side.empty': 'No covers yet — fill in the form and press Save',
+  'side.skipped': '{n} file(s) could not be read and are not listed: {list}',
+
   /* Side tools */
   'tool.print': 'Print',
+  'tool.menu': 'Cover list',
+  'tool.save': 'Save this cover (⌘ / Ctrl-S)',
+  'tool.delete': 'Delete',
   'tool.copyLink': 'Copy a link to this cover',
   'tool.mode': 'Toggle light / dark',
   'tool.lang': 'Language',
   'tool.more': 'More tools',
+  'tool.clearFilter': 'Clear',
 
   /* toast */
   'toast.lang': 'Switched to {name}',
   'toast.copied': 'Copied',
   'toast.copyFail': 'Copy failed',
-  'toast.printOver': 'The title runs past the bottom of the page and will be cut off'
+  'toast.printOver': 'The title runs past the bottom of the page and will be cut off',
+  'toast.saved': 'Saved: {c}',
+  'toast.deleted': 'Deleted: {n}',
+  'toast.codeInvalid': 'Enter a text number first (letters, digits, . _ -; e.g. T2428)',
+  'toast.saveFail': 'Save failed: {m}',
+  'toast.deleteFail': 'Delete failed: {m}',
+  'toast.listFail': 'Failed to load file list: {m}',
+  'toast.loadFail': 'Failed to load: {n} ({m})',
+  'confirm.overwrite': '“{c}” is already saved. Overwrite it with the current content? (The old one is backed up to .bak)',
+  'confirm.delete': 'Delete “{c} {t}”? The file will be moved to the .bak backup.'
 });

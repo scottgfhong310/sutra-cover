@@ -255,6 +255,115 @@ body {
 
 .preview-hint { margin-top: 10px; }
 
+/* ── 典籍封面清單（右側 sidenav；形制照 markdown-reader）───────────────── */
+.sidenav {
+  background: var(--surface) !important;
+  left: auto !important;
+  right: 0 !important;
+  width: 340px;
+}
+
+.sidenav .subheader {
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.4 !important;
+  padding: 12px 20px !important;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted) !important;
+}
+
+.sidenav .subheader .material-icons { margin-top: 1px; }
+
+.sidenav .subheader .path {
+  display: block;
+  font-size: .76rem;
+  opacity: .8;
+  word-break: break-all;
+}
+
+.sidenav .divider { background-color: var(--border) !important; }
+
+/* 側欄篩選框（手刻極簡輸入框；§5.12 filter-clear 的宿主，同 markdown-reader） */
+.nav-filter-wrap { padding: 8px 16px 10px; }
+.nav-filter {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: 36px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: .85rem;
+}
+.nav-filter:focus { outline: none; border-color: var(--accent) !important; box-shadow: none !important; }
+
+.cover-list { margin: 0; }
+
+.cover-list li.cover-item {
+  display: flex;
+  align-items: stretch;
+}
+
+.sidenav .cover-list li.cover-item > a {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto !important;
+  line-height: 1.35 !important;
+  padding: 9px 4px 9px 20px !important;
+  color: var(--text) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cover-list .cv-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.cover-list .cv-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cover-list li.active { background: rgba(127, 127, 127, 0.14) !important; }
+.cover-list li.active .cv-name,
+.cover-list li.active .cv-code { color: var(--accent); font-weight: 600; }
+
+.cover-list li.is-empty > a { color: var(--muted) !important; }
+
+/* 刪除鈕：自繪 <button>，要自己蓋掉 Materialize 對裸 button 的 teal 互動底（§5.1 gotcha） */
+.cover-del {
+  flex: 0 0 auto;
+  width: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .55;
+}
+.cover-del:hover,
+.cover-del:focus,
+.cover-del:active { background: transparent; color: var(--danger); opacity: 1; outline: none; }
+.cover-del .material-icons { font-size: 20px; }
+
+.side-note {
+  padding: 8px 20px 16px;
+  font-size: .78rem;
+  color: var(--warn);
+  line-height: 1.5;
+}
+.side-note:empty { display: none; }
+
 /* ── 列印：只印那張紙（dark 主題必須回淺色，§5.1 的兩個坑）─────────── */
 @page {
   size: A4 portrait;
@@ -276,6 +385,8 @@ body {
   .form-col,
   .preview-hint,
   .side-tools,
+  .sidenav,
+  .sidenav-overlay,
   .page-limit,
   #toast-container {
     display: none !important;

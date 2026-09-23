@@ -10,6 +10,8 @@
  *     lib 的 maxChars() 只是「約可容納幾字」的估計，畫面上標「約」。
  *   - 字型有沒有真的用上魏碑，**量像素判斷**（CJK 載體字元寬度恆為 1em，量寬度必然回報「沒裝」），
  *     並分三態：用上／沒用上／量不出來——量不出來不可以落進任何一個結論。
+ *   - 封面清單（右側 sidenav，形制照 markdown-reader）：**一個編號一份**；儲存先試「新建」，
+ *     409 才問要不要覆寫——「先查清單再決定」是 TOCTOU（§3.3），撞號交給後端判。
  */
 (function () {
   'use strict';
@@ -24,6 +26,9 @@
   var fontState = null;      // 'yes' | 'no' | 'unknown'
   var lastFit = null;
   var savedTitle = null;     // 列印時暫換 document.title（存 PDF 的預設檔名）
+  var covers = [];           // 伺服器上的封面（已依編號排序）
+  var currentCode = null;    // 目前表單載入自（或剛存成）哪一份
+  var skipped = [];          // 伺服器讀不進來的檔名
 
   // ── 小工具 ────────────────────────────────────────────────────────────
 
@@ -70,6 +75,7 @@
 
   function readInputs() {
     return Lib.normalize({
+      code: el.code.value,
       title: el.title.value,
       author: el.author.value,
       size: el.size.value,
@@ -78,6 +84,7 @@
   }
 
   function writeInputs(p) {
+    setValue(el.code, p.code);
     setValue(el.title, p.title);
     setValue(el.author, p.author);
     setValue(el.size, p.size);
@@ -205,6 +212,108 @@
       esc(t('font.' + fontState, { f: Lib.FONT_FAMILY })) + '</span>';
   }
 
+  // ── 封面清單 ──────────────────────────────────────────────────────────
+
+  function renderList() {
+    if (!covers.length) {
+      el.sideNav.innerHTML = '<li class="is-empty"><a>' + esc(t('side.empty')) + '</a></li>';
+      renderSkipped();
+      return;
+    }
+    el.sideNav.innerHTML = covers.map(function (c) {
+      var code = esc(c.code);
+      return '<li class="cover-item' + (c.code === currentCode ? ' active' : '') + '" data-code="' + code + '">' +
+        '<a href="#!" class="cover-open" data-code="' + code + '">' +
+        '<span class="cv-code">' + code + '</span>' +
+        '<span class="cv-name">' + esc(c.title || '—') + '</span></a>' +
+        '<button type="button" class="cover-del" data-code="' + code + '" title="' + esc(t('tool.delete')) + '"' +
+        ' aria-label="' + esc(t('tool.delete')) + '"><i class="material-icons">delete_outline</i></button></li>';
+    }).join('');
+    applyNavFilter();
+    renderSkipped();
+  }
+
+  /** 篩選：只切顯示、不重建 DOM（保留 active）；清除鈕由共用 filter-clear 派發 input 事件驅動 */
+  function applyNavFilter() {
+    var q = el.navFilter.value;
+    el.sideNav.querySelectorAll('li[data-code]').forEach(function (li) {
+      var c = covers.filter(function (x) { return x.code === li.dataset.code; })[0];
+      li.style.display = (!c || Lib.matchCover(c, q)) ? '' : 'none';
+    });
+  }
+
+  function refreshList() {
+    return Lib.listCovers().then(function (r) {
+      covers = r.covers;
+      skipped = r.skipped;
+      renderList();
+    }).catch(function (e) {
+      toast(t('toast.listFail', { m: esc(e.message) }), 'red');
+    });
+  }
+
+  /** 讀不進來的檔（壞 JSON／檔名不合規）要在清單上講出來，而不是安靜地少幾筆 */
+  function renderSkipped() {
+    el.sideNote.textContent = skipped.length
+      ? t('side.skipped', { n: skipped.length, list: skipped.join(', ') }) : '';
+  }
+
+  function setCurrent(code) {
+    currentCode = code;
+    el.sideNav.querySelectorAll('li[data-code]').forEach(function (li) {
+      li.classList.toggle('active', li.dataset.code === code);
+    });
+  }
+
+  function openCover(code) {
+    return Lib.getCover(code).then(function (c) {
+      writeInputs(Lib.normalize(c));
+      render();
+      setCurrent(c.code);
+      var inst = M.Sidenav.getInstance(el.sidenav);
+      if (inst && inst.isOpen) inst.close();
+    }).catch(function (e) {
+      toast(t('toast.loadFail', { n: esc(code), m: esc(e.message) }), 'red');
+    });
+  }
+
+  function saveCurrent() {
+    var p = readInputs();
+    if (!Lib.isValidCode(p.code)) {
+      toast(t('toast.codeInvalid'), 'red');
+      el.code.focus();
+      return Promise.resolve(false);
+    }
+    writeInputs(p);                                    // 把轉成大寫的編號寫回欄位
+    function done(j) {
+      setCurrent(j.cover.code);
+      toast(t('toast.saved', { c: esc(j.cover.code) }), 'green');
+      setIconDone('setting-save');
+      return refreshList().then(function () { return true; });
+    }
+    return Lib.saveCover(p, false).then(done).catch(function (e) {
+      if (e.code !== 'exists') throw e;
+      // 已存在：問過再覆寫（覆寫前伺服器會先 .bak）
+      if (!window.confirm(t('confirm.overwrite', { c: p.code }))) return false;
+      return Lib.saveCover(p, true).then(done);
+    }).catch(function (e) {
+      toast(t('toast.saveFail', { m: esc(e.message) }), 'red');
+      return false;
+    });
+  }
+
+  function deleteCover(code) {
+    var c = covers.filter(function (x) { return x.code === code; })[0];
+    if (!window.confirm(t('confirm.delete', { c: code, t: (c && c.title) || '' }))) return;
+    Lib.deleteCover(code).then(function () {
+      if (currentCode === code) currentCode = null;
+      toast(t('toast.deleted', { n: esc(code) }), 'teal');
+      return refreshList();
+    }).catch(function (e) {
+      toast(t('toast.deleteFail', { m: esc(e.message) }), 'red');
+    });
+  }
+
   // ── 列印 ──────────────────────────────────────────────────────────────
 
   function doPrint() {
@@ -227,7 +336,11 @@
   // ── 初始化 ────────────────────────────────────────────────────────────
 
   function cacheEls() {
-    ['title', 'author', 'size', 'ls'].forEach(function (k) { el[k] = $(k); });
+    ['code', 'title', 'author', 'size', 'ls'].forEach(function (k) { el[k] = $(k); });
+    el.sidenav = $('slide-out');
+    el.sideNav = $('side-nav');
+    el.sideNote = $('side-note');
+    el.navFilter = $('nav-filter');
     el.sizeRange = $('size-range');
     el.lsRange = $('ls-range');
     el.frame = $('sheet-frame');
@@ -242,8 +355,14 @@
   }
 
   function bindInputs() {
-    [el.title, el.author].forEach(function (input) {
+    [el.code, el.title, el.author].forEach(function (input) {
       input.addEventListener('input', function () { if (!writing) scheduleRender(); });
+    });
+    // 編號離開欄位時正規化（去空白、轉大寫）——打字中不動它，免得游標亂跳
+    el.code.addEventListener('change', function () {
+      setValue(el.code, Lib.cleanCode(el.code.value));
+      if (window.M && M.updateTextFields) M.updateTextFields();
+      scheduleRender();
     });
     // 滑桿 ⇄ 數字框：拖拉即時、打字延後；數字框離開時寫回夾過的值
     [[el.size, el.sizeRange], [el.ls, el.lsRange]].forEach(function (pair) {
@@ -266,6 +385,31 @@
   }
 
   function bindTools() {
+    $('setting-menu').addEventListener('click', function () {
+      var inst = M.Sidenav.getInstance(el.sidenav);
+      if (!inst) return;
+      if (inst.isOpen) { inst.close(); return; }
+      refreshList();
+      inst.open();
+    });
+    $('setting-save').addEventListener('click', saveCurrent);
+
+    // Ctrl／⌘-S ＝儲存（不讓瀏覽器跳出「另存網頁」）
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        saveCurrent();
+      }
+    });
+
+    el.sideNav.addEventListener('click', function (e) {
+      var del = e.target.closest('.cover-del');
+      if (del) { e.preventDefault(); deleteCover(del.dataset.code); return; }
+      var open = e.target.closest('.cover-open');
+      if (open) { e.preventDefault(); openCover(open.dataset.code); }
+    });
+    el.navFilter.addEventListener('input', applyNavFilter);
+
     $('btn-print').addEventListener('click', function (e) { e.preventDefault(); doPrint(); });
     $('setting-print').addEventListener('click', doPrint);
 
@@ -311,7 +455,16 @@
     initRanges();
 
     // 初始值：預設 ← 深連結覆蓋
-    writeInputs(Lib.normalize(Lib.parseQuery(location.search)));
+    var fromUrl = Lib.parseQuery(location.search);
+    writeInputs(Lib.normalize(fromUrl));
+
+    // 右側清單（§5.5：側欄開啟時工具列淡出）。
+    // ⚠️ 移除 class 綁 onCloseStart 不綁 onCloseEnd——背景分頁的動畫不跑完，onCloseEnd 永遠等不到
+    M.Sidenav.init(el.sidenav, {
+      edge: 'right',
+      onOpenStart: function () { document.body.classList.add('sidenav-open'); },
+      onCloseStart: function () { document.body.classList.remove('sidenav-open'); }
+    });
 
     bindInputs();
     bindTools();
@@ -328,10 +481,18 @@
     document.addEventListener('i18n:changed', function () {
       window.I18n.apply();
       render();
+      renderList();
     });
 
     fontState = detectFont();
     render();
+    refreshList().then(function () {
+      // 只帶編號的連結（?c=T2428）＝開啟那一份已存的封面
+      var code = fromUrl.code !== undefined ? Lib.cleanCode(fromUrl.code) : '';
+      var onlyCode = code && fromUrl.title === undefined && fromUrl.author === undefined;
+      if (onlyCode) return openCover(code);
+      if (code && covers.some(function (c) { return c.code === code; })) setCurrent(code);
+    });
     // 系統字型可能晚一拍才可用：字型集就緒後再量一次（版面與字型兩者都是）
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(function () { fontState = detectFont(); render(); });

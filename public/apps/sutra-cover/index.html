@@ -33,9 +33,35 @@
 
   <link rel="stylesheet" href="./sutra-cover.css" />
   <link rel="stylesheet" href="./side-tool.css" />
+  <link rel="stylesheet" href="./filter-clear.css" />   <!-- 共用 utility：篩選框「清除」× 鈕（§5.12） -->
 </head>
 
 <body data-i18n-doctitle="title.page">
+
+  <!-- 典籍封面清單（右側滑出；形制照 markdown-reader 的檔案清單） -->
+  <ul id="slide-out" class="sidenav">
+    <li>
+      <a class="subheader">
+        <i class="material-icons">folder_open</i>
+        <span><span data-i18n="side.header">典籍封面</span><span class="path">/upload/sutra-cover</span></span>
+      </a>
+    </li>
+    <li>
+      <div class="divider"></div>
+    </li>
+    <li>
+      <div class="nav-filter-wrap">
+        <input type="text" id="nav-filter" class="nav-filter browser-default" data-i18n-placeholder="side.filter"
+          placeholder="篩選編號、題名、作者…" spellcheck="false" autocomplete="off" data-filter-clear />
+      </div>
+    </li>
+    <li>
+      <ul id="side-nav" class="cover-list"></ul>
+    </li>
+    <li>
+      <div id="side-note" class="side-note"></div>
+    </li>
+  </ul>
 
   <main>
     <div class="app-container">
@@ -51,6 +77,12 @@
         <div class="col s12 l4 form-col">
           <section class="card panel" aria-labelledby="form-title">
             <h2 class="panel-title" id="form-title" data-i18n="form.legend">內容</h2>
+
+            <div class="input-field">
+              <input id="code" type="text" autocomplete="off" spellcheck="false" autocapitalize="characters" />
+              <label for="code" data-i18n="form.code">典籍編號</label>
+              <span class="helper-text" data-i18n="form.codeHelp">例：T2428；儲存時的鍵（英數與 . _ -，自動轉大寫）</span>
+            </div>
 
             <div class="input-field">
               <input id="title" type="text" autocomplete="off" spellcheck="false" />
@@ -126,8 +158,14 @@
     </div>
   </main>
 
-  <!-- ── 右側浮動工具列（§5.5 排序：app 工具 → mode → lang）──────────── -->
+  <!-- ── 右側浮動工具列（§5.5 排序：入口鍵 → app 工具 → mode → lang）──── -->
   <div class="side-tools">
+    <div id="setting-menu" class="side-tool" data-i18n-title="tool.menu" title="封面清單">
+      <i class="material-icons">folder_open</i>
+    </div>
+    <div id="setting-save" class="side-tool" data-i18n-title="tool.save" title="儲存這份封面">
+      <i class="material-icons">save</i>
+    </div>
     <div id="setting-print" class="side-tool" data-i18n-title="tool.print" title="列印">
       <i class="material-icons">print</i>
     </div>
@@ -151,6 +189,7 @@
   <script src="./locales/en.js"></script>
   <script src="./locales/ja.js"></script>
   <script src="./side-tool.js"></script>   <!-- 共用 utility：側鍵行為（check 微回饋＋溢出收納） -->
+  <script src="./filter-clear.js"></script>   <!-- 共用 utility：篩選框清除鈕（控制器之前，§5.12） -->
   <script src="./sutra-cover.js"></script>
 </body>
 

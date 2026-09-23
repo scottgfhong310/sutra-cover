@@ -15,9 +15,12 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 
+const os = require('os');
+
 const ROOT = process.env.SUTRA_COVER_ROOT || path.join(__dirname, '..');
 const APP = path.join(ROOT, 'public/apps/sutra-cover');
 const FAMILY = path.join(ROOT, '..', 'nodeapp-webapp-family');
+const LOCAL_READER = path.join(ROOT, '..', 'local-reader', 'public', 'apps', 'local-reader');
 
 let fails = 0;
 let n = 0;
@@ -83,8 +86,8 @@ check('normalize：數字夾到範圍、對齊 step、非數字退回預設', ()
   assert(Lib.normalize({ ls: '9' }).ls === L.ls.max, 'ls 上限');
 });
 
-check('網址 round-trip：題名／作者（含全形空格）／字級／字距原樣回來', () => {
-  const p = { title: '大日經\u3000疏', author: '一行\u3000記', size: 28.5, ls: 0.85 };
+check('網址 round-trip：編號／題名／作者（含全形空格）／字級／字距原樣回來', () => {
+  const p = { code: 'T1796', title: '大日經\u3000疏', author: '一行\u3000記', size: 28.5, ls: 0.85 };
   const back = Lib.normalize(Lib.parseQuery(Lib.buildQuery(p)));
   assert(JSON.stringify(back) === JSON.stringify(Lib.normalize(p)), JSON.stringify(back));
 });
@@ -115,6 +118,24 @@ check('末字字距抵銷＝ −字距（兩者是同一個數字）', () => {
 check('fitState 三段：ok／tight／over，量不出來（NaN）不可以落進 over', () => {
   assert(Lib.fitState(0.5) === 'ok' && Lib.fitState(0.97) === 'tight' && Lib.fitState(1.2) === 'over', 'three states');
   assert(Lib.fitState(NaN) === 'ok', 'NaN');
+});
+
+check('編號：去空白、轉大寫（macOS 不分大小寫，t2428 與 T2428 是同一個檔）；不合規的擋下', () => {
+  assert(Lib.cleanCode(' t 2428 ') === 'T2428', Lib.cleanCode(' t 2428 '));
+  ['T2428', 'X1000', 'T1796-01', 'B.23', 'A_1'].forEach((c) => assert(Lib.isValidCode(c), `該通過：${c}`));
+  ['', '../X', 'A..B', '.T1', '-T1', 'T/1', 'T\\1', '經', 'A'.repeat(33), 'T 1', 't1'].forEach((c) =>
+    assert(!Lib.isValidCode(c), `該擋下：${JSON.stringify(c)}`));
+});
+
+check('排序是數字感知的（T262 < T2428 < T10000；X 在 T 之後）', () => {
+  const got = ['T2428', 'X0001', 'T10000', 'T262', 'T2428A', 'B1'].sort(Lib.compareCode).join(' ');
+  assert(got === 'B1 T262 T2428 T2428A T10000 X0001', got);
+});
+
+check('清單篩選：編號／題名／作者三欄子字串、不分大小寫；空字串全部通過', () => {
+  const c = { code: 'T2428', title: '即身成佛義', author: '遍照金剛\u3000撰' };
+  assert(Lib.matchCover(c, 't24') && Lib.matchCover(c, '成佛') && Lib.matchCover(c, '金剛') && Lib.matchCover(c, ''), 'hit');
+  assert(!Lib.matchCover(c, '大日'), 'miss');
 });
 
 // ── CSS 與 lib 常數一致（同一個事實寫在兩個地方）─────────────────────
@@ -151,6 +172,7 @@ check('dark 主題列印回淺色（§5.1 的兩個坑：color-scheme 與 transi
   assert(/color-scheme:\s*light\s*!important/.test(print), 'color-scheme');
   assert(/transition:\s*none\s*!important/.test(print), 'transition');
   assert(/\.side-tools/.test(print) && /\.form-col/.test(print), '列印沒藏掉 UI');
+  assert(/\.sidenav,/.test(print) && /\.sidenav-overlay/.test(print), '列印沒藏掉右側清單與遮罩');
 });
 
 // ── i18n ───────────────────────────────────────────────────────────────
@@ -201,9 +223,26 @@ check('控制器 $() 取的每個 id 都在 index.html 裡', () => {
   assert(miss.length === 0, miss.join(', '));
 });
 
-check('側鍵順序：app 工具 → #setting-mode → #setting-lang 墊底（§5.5）', () => {
+check('側鍵順序：#setting-menu（folder_open）→ app 工具 → #setting-mode → #setting-lang（§5.5／§5.6）', () => {
   const order = [...html.matchAll(/id="(setting-[\w-]+)"/g)].map((m) => m[1]);
+  assert(order[0] === 'setting-menu' && order[1] === 'setting-save', order.join(' → '));
   assert(order.slice(-2).join() === 'setting-mode,setting-lang', order.join(' → '));
+  assert(/id="setting-menu"[^>]*>\s*<i class="material-icons">folder_open</.test(html), '#setting-menu 不是 folder_open');
+});
+
+check('右側清單：Sidenav edge right，關閉的 class 綁 onCloseStart（onCloseEnd 在背景分頁永遠不來）', () => {
+  assert(/M\.Sidenav\.init\([\s\S]*?edge:\s*'right'/.test(ctrl), 'edge 不是 right');
+  assert(/onCloseStart:[^\n]*sidenav-open/.test(ctrl), '沒有在 onCloseStart 拿掉 sidenav-open');
+  const code = ctrl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');   // 註解裡講「不要用它」不算用了
+  assert(!/onCloseEnd/.test(code), '用了 onCloseEnd');
+});
+
+check('後端不另寫一份驗證：route 載入 sutra-cover-lib.js、自己不寫編號規則', () => {
+  const route = fs.readFileSync(path.join(ROOT, 'routes', 'sutra-cover.js'), 'utf8');
+  assert(route.includes("'sutra-cover-lib.js'"), 'route 沒有載入 lib');
+  assert(route.includes('Lib.isValidCode') && route.includes('Lib.toRecord'), 'route 沒用 lib 的規則');
+  const code = route.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert(!/\[A-Z0-9\]|toUpperCase|Math\.min\(|clamp/.test(code), 'route 裡有第二份編號／夾值規則');
 });
 
 check('-lib.js 不碰 DOM（§4.1）', () => {
@@ -227,13 +266,97 @@ check('原始碼無 NUL 位元組；JS 程式碼無實體 U+3000（要寫 \\u300
   assert(bad.length === 0, bad.join(', '));
 });
 
-check('共用件與家族權威版 byte-identical（materialize-dark／side-tool／i18n）', () => {
-  if (!fs.existsSync(FAMILY)) return 'skip';
+check('共用件與家族權威版 byte-identical（materialize-dark／side-tool／i18n；filter-clear 權威在 local-reader）', () => {
+  if (!fs.existsSync(FAMILY) || !fs.existsSync(LOCAL_READER)) return 'skip';
   const md5 = (p) => crypto.createHash('md5').update(fs.readFileSync(p)).digest('hex');
   const bad = ['materialize-dark.css', 'side-tool.css', 'side-tool.js', 'i18n.js']
-    .filter((f) => md5(path.join(APP, f)) !== md5(path.join(FAMILY, f)));
+    .filter((f) => md5(path.join(APP, f)) !== md5(path.join(FAMILY, f)))
+    .concat(['filter-clear.css', 'filter-clear.js']
+      .filter((f) => md5(path.join(APP, f)) !== md5(path.join(LOCAL_READER, f))));
   assert(bad.length === 0, bad.join(', '));
 });
 
-console.log(fails ? `\n${fails} / ${n} FAIL` : `\nall ${n} checks passed`);
-process.exit(fails ? 1 : 0);
+// ── API：在暫存資料夾裡真的跑一次（不碰 public/upload/sutra-cover/）──────
+async function checkApi() {
+  let express;
+  try { express = require(path.join(ROOT, 'node_modules', 'express')); } catch (e) {
+    n += 1; console.log(`  SKIP ${String(n).padStart(2)} API（沒有 node_modules，先 npm install）`); return;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sutra-cover-verify-'));
+  const { createRouter } = require(path.join(ROOT, 'routes', 'sutra-cover.js'));
+  const app = express();
+  app.use(express.json());
+  app.use('/api/sutra-cover', createRouter({ dataDir: dir }));
+  const server = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}/api/sutra-cover/covers`;
+  const call = async (method, code, body) => {
+    const res = await fetch(base + (code == null ? '' : '/' + encodeURIComponent(code)), {
+      method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body)
+    });
+    return { status: res.status, j: await res.json() };
+  };
+  const results = [];
+  const acheck = async (name, fn) => {
+    n += 1;
+    try { await fn(); results.push(`  ok   ${String(n).padStart(2)} ${name}`); }
+    catch (e) { fails += 1; results.push(`  FAIL ${String(n).padStart(2)} ${name}\n         ${e.message}`); }
+  };
+  try {
+    await acheck('API：新建 → 同編號（小寫也算）再建回 409 → overwrite 覆寫、保留 createdAt、留 .bak', async () => {
+      let r = await call('PUT', 'T2428', { title: '即身成佛義', author: '遍照金剛\u3000撰', size: 36, ls: 1.25 });
+      assert(r.status === 200 && r.j.created === true && r.j.cover.code === 'T2428', JSON.stringify(r));
+      const created = r.j.cover.createdAt;
+      r = await call('PUT', 't2428', { title: 'X' });
+      assert(r.status === 409 && r.j.error === 'exists', `second create: ${r.status}`);
+      r = await call('PUT', 'T2428', { title: '即身成佛義', author: '空海', size: 999, overwrite: true });
+      assert(r.status === 200 && r.j.created === false && r.j.cover.size === 96, JSON.stringify(r.j));
+      assert(r.j.cover.createdAt === created, 'createdAt 被改掉');
+      assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('T2428.json-')), '沒有 .bak');
+      assert(JSON.parse(fs.readFileSync(path.join(dir, 'T2428.json'), 'utf8')).author === '空海', '檔案內容');
+    });
+    await acheck('API：不合規編號（../X、A..B、漢字）一律 400，不落檔', async () => {
+      for (const c of ['../X', 'A..B', '經']) {
+        const r = await call('PUT', c, { title: 'x' });
+        assert(r.status === 400 && r.j.error === 'invalid-code', `${c}: ${r.status}`);
+      }
+      assert(fs.readdirSync(dir).filter((f) => f.endsWith('.json')).join() === 'T2428.json', fs.readdirSync(dir).join());
+    });
+    await acheck('API：20 個同編號併發新建只有 1 個成功（wx 原子建立，§3.3）', async () => {
+      const st = await Promise.all(Array.from({ length: 20 }, (_, i) => call('PUT', 'RACE', { title: 't' + i }).then((r) => r.status)));
+      assert(st.filter((x) => x === 200).length === 1 && st.filter((x) => x === 409).length === 19, st.join(','));
+    });
+    await acheck('API：清單依編號排序；讀不進來的檔列在 skipped，不是安靜地少一筆', async () => {
+      fs.writeFileSync(path.join(dir, 'BAD.json'), '{not json');
+      fs.writeFileSync(path.join(dir, 't9.json'), '{}');
+      const r = await call('GET');
+      assert(r.j.covers.map((c) => c.code).join() === 'RACE,T2428', r.j.covers.map((c) => c.code).join());
+      assert(r.j.skipped.sort().join() === 'BAD.json,t9.json', r.j.skipped.join());
+    });
+    await acheck('API：刪除＝移進 .bak；再刪 404；讀不存在的 404', async () => {
+      let r = await call('DELETE', 'RACE');
+      assert(r.status === 200 && !fs.existsSync(path.join(dir, 'RACE.json')), 'still there');
+      assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('RACE.json-') && f.endsWith('.deleted.bak')), 'not in .bak');
+      r = await call('DELETE', 'RACE');
+      assert(r.status === 404, String(r.status));
+      r = await call('GET', 'RACE');
+      assert(r.status === 404, String(r.status));
+    });
+    await acheck('API：資料夾不存在＝空清單（回灌不重建資料夾，由第一次寫入惰性建立）', async () => {
+      const s2 = express();
+      s2.use('/x', createRouter({ dataDir: path.join(dir, 'nope', 'deeper') }));
+      const srv = await new Promise((r) => { const s = s2.listen(0, () => r(s)); });
+      const j = await (await fetch(`http://127.0.0.1:${srv.address().port}/x/covers`)).json();
+      srv.close();
+      assert(j.ok && j.covers.length === 0 && !fs.existsSync(path.join(dir, 'nope')), JSON.stringify(j));
+    });
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  results.forEach((l) => console.log(l));
+}
+
+checkApi().then(() => {
+  console.log(fails ? `\n${fails} / ${n} FAIL` : `\nall ${n} checks passed`);
+  process.exit(fails ? 1 : 0);
+});
