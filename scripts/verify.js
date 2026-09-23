@@ -24,15 +24,23 @@ const LOCAL_READER = path.join(ROOT, '..', 'local-reader', 'public', 'apps', 'lo
 
 let fails = 0;
 let n = 0;
-function check(name, fn) {
-  n += 1;
-  try {
-    const r = fn();
-    if (r === 'skip') { console.log(`  SKIP ${String(n).padStart(2)} ${name}`); return; }
-    console.log(`  ok   ${String(n).padStart(2)} ${name}`);
-  } catch (e) {
-    fails += 1;
-    console.log(`  FAIL ${String(n).padStart(2)} ${name}\n         ${e.message}`);
+/**
+ * 每一條都用同一個形狀 `check('…', fn)` 登記（家族 tools/test-readme-counts.js 靠它數條數），
+ * fn 可以是 async——全部排進佇列，最後依序 await，所以輸出順序＝登記順序。
+ */
+const QUEUE = [];
+function check(name, fn) { QUEUE.push({ name, fn }); }
+async function runChecks() {
+  for (const { name, fn } of QUEUE) {
+    n += 1;
+    try {
+      const r = await fn();
+      if (r === 'skip') { console.log(`  SKIP ${String(n).padStart(2)} ${name}`); continue; }
+      console.log(`  ok   ${String(n).padStart(2)} ${name}`);
+    } catch (e) {
+      fails += 1;
+      console.log(`  FAIL ${String(n).padStart(2)} ${name}\n         ${e.message}`);
+    }
   }
 }
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
@@ -277,11 +285,12 @@ check('共用件與家族權威版 byte-identical（materialize-dark／side-tool
 });
 
 // ── API：在暫存資料夾裡真的跑一次（不碰 public/upload/sutra-cover/）──────
-async function checkApi() {
+// 伺服器第一條 API 檢查用到時才起（沒有 node_modules 就整組 SKIP），全部跑完再收掉。
+let api = null;
+async function apiEnv() {
+  if (api) return api;
   let express;
-  try { express = require(path.join(ROOT, 'node_modules', 'express')); } catch (e) {
-    n += 1; console.log(`  SKIP ${String(n).padStart(2)} API（沒有 node_modules，先 npm install）`); return;
-  }
+  try { express = require(path.join(ROOT, 'node_modules', 'express')); } catch (e) { return (api = { skip: true }); }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sutra-cover-verify-'));
   const { createRouter } = require(path.join(ROOT, 'routes', 'sutra-cover.js'));
   const app = express();
@@ -295,68 +304,69 @@ async function checkApi() {
     });
     return { status: res.status, j: await res.json() };
   };
-  const results = [];
-  const acheck = async (name, fn) => {
-    n += 1;
-    try { await fn(); results.push(`  ok   ${String(n).padStart(2)} ${name}`); }
-    catch (e) { fails += 1; results.push(`  FAIL ${String(n).padStart(2)} ${name}\n         ${e.message}`); }
-  };
-  try {
-    await acheck('API：新建 → 同編號（小寫也算）再建回 409 → overwrite 覆寫、保留 createdAt、留 .bak', async () => {
-      let r = await call('PUT', 'T2428', { title: '即身成佛義', author: '遍照金剛\u3000撰', size: 36, ls: 1.25 });
-      assert(r.status === 200 && r.j.created === true && r.j.cover.code === 'T2428', JSON.stringify(r));
-      const created = r.j.cover.createdAt;
-      r = await call('PUT', 't2428', { title: 'X' });
-      assert(r.status === 409 && r.j.error === 'exists', `second create: ${r.status}`);
-      r = await call('PUT', 'T2428', { title: '即身成佛義', author: '空海', size: 999, overwrite: true });
-      assert(r.status === 200 && r.j.created === false && r.j.cover.size === 96, JSON.stringify(r.j));
-      assert(r.j.cover.createdAt === created, 'createdAt 被改掉');
-      assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('T2428.json-')), '沒有 .bak');
-      assert(JSON.parse(fs.readFileSync(path.join(dir, 'T2428.json'), 'utf8')).author === '空海', '檔案內容');
-    });
-    await acheck('API：不合規編號（../X、A..B、漢字）一律 400，不落檔', async () => {
-      for (const c of ['../X', 'A..B', '經']) {
-        const r = await call('PUT', c, { title: 'x' });
-        assert(r.status === 400 && r.j.error === 'invalid-code', `${c}: ${r.status}`);
-      }
-      assert(fs.readdirSync(dir).filter((f) => f.endsWith('.json')).join() === 'T2428.json', fs.readdirSync(dir).join());
-    });
-    await acheck('API：20 個同編號併發新建只有 1 個成功（wx 原子建立，§3.3）', async () => {
-      const st = await Promise.all(Array.from({ length: 20 }, (_, i) => call('PUT', 'RACE', { title: 't' + i }).then((r) => r.status)));
-      assert(st.filter((x) => x === 200).length === 1 && st.filter((x) => x === 409).length === 19, st.join(','));
-    });
-    await acheck('API：清單依編號排序；讀不進來的檔列在 skipped，不是安靜地少一筆', async () => {
-      fs.writeFileSync(path.join(dir, 'BAD.json'), '{not json');
-      fs.writeFileSync(path.join(dir, 't9.json'), '{}');
-      const r = await call('GET');
-      assert(r.j.covers.map((c) => c.code).join() === 'RACE,T2428', r.j.covers.map((c) => c.code).join());
-      assert(r.j.skipped.sort().join() === 'BAD.json,t9.json', r.j.skipped.join());
-    });
-    await acheck('API：刪除＝移進 .bak；再刪 404；讀不存在的 404', async () => {
-      let r = await call('DELETE', 'RACE');
-      assert(r.status === 200 && !fs.existsSync(path.join(dir, 'RACE.json')), 'still there');
-      assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('RACE.json-') && f.endsWith('.deleted.bak')), 'not in .bak');
-      r = await call('DELETE', 'RACE');
-      assert(r.status === 404, String(r.status));
-      r = await call('GET', 'RACE');
-      assert(r.status === 404, String(r.status));
-    });
-    await acheck('API：資料夾不存在＝空清單（回灌不重建資料夾，由第一次寫入惰性建立）', async () => {
-      const s2 = express();
-      s2.use('/x', createRouter({ dataDir: path.join(dir, 'nope', 'deeper') }));
-      const srv = await new Promise((r) => { const s = s2.listen(0, () => r(s)); });
-      const j = await (await fetch(`http://127.0.0.1:${srv.address().port}/x/covers`)).json();
-      srv.close();
-      assert(j.ok && j.covers.length === 0 && !fs.existsSync(path.join(dir, 'nope')), JSON.stringify(j));
-    });
-  } finally {
-    server.close();
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-  results.forEach((l) => console.log(l));
+  return (api = { express, createRouter, dir, server, call });
 }
+/** API 檢查的 fn 包一層：拿到（第一次時才建立的）伺服器環境；沒有 node_modules 就 SKIP */
+function withApi(fn) {
+  return async () => {
+    const env = await apiEnv();
+    if (env.skip) return 'skip';
+    return fn(env);
+  };
+}
+check('API：新建 → 同編號（小寫也算）再建回 409 → overwrite 覆寫、保留 createdAt、留 .bak', withApi(async ({ call, dir, express, createRouter }) => {
+  let r = await call('PUT', 'T2428', { title: '即身成佛義', author: '遍照金剛\u3000撰', size: 36, ls: 1.25 });
+  assert(r.status === 200 && r.j.created === true && r.j.cover.code === 'T2428', JSON.stringify(r));
+  const created = r.j.cover.createdAt;
+  r = await call('PUT', 't2428', { title: 'X' });
+  assert(r.status === 409 && r.j.error === 'exists', `second create: ${r.status}`);
+  r = await call('PUT', 'T2428', { title: '即身成佛義', author: '空海', size: 999, overwrite: true });
+  assert(r.status === 200 && r.j.created === false && r.j.cover.size === 96, JSON.stringify(r.j));
+  assert(r.j.cover.createdAt === created, 'createdAt 被改掉');
+  assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('T2428.json-')), '沒有 .bak');
+  assert(JSON.parse(fs.readFileSync(path.join(dir, 'T2428.json'), 'utf8')).author === '空海', '檔案內容');
+}));
+check('API：不合規編號（../X、A..B、漢字）一律 400，不落檔', withApi(async ({ call, dir, express, createRouter }) => {
+  for (const c of ['../X', 'A..B', '經']) {
+    const r = await call('PUT', c, { title: 'x' });
+    assert(r.status === 400 && r.j.error === 'invalid-code', `${c}: ${r.status}`);
+  }
+  assert(fs.readdirSync(dir).filter((f) => f.endsWith('.json')).join() === 'T2428.json', fs.readdirSync(dir).join());
+}));
+check('API：20 個同編號併發新建只有 1 個成功（wx 原子建立，§3.3）', withApi(async ({ call, dir, express, createRouter }) => {
+  const st = await Promise.all(Array.from({ length: 20 }, (_, i) => call('PUT', 'RACE', { title: 't' + i }).then((r) => r.status)));
+  assert(st.filter((x) => x === 200).length === 1 && st.filter((x) => x === 409).length === 19, st.join(','));
+}));
+check('API：清單依編號排序；讀不進來的檔列在 skipped，不是安靜地少一筆', withApi(async ({ call, dir, express, createRouter }) => {
+  fs.writeFileSync(path.join(dir, 'BAD.json'), '{not json');
+  fs.writeFileSync(path.join(dir, 't9.json'), '{}');
+  const r = await call('GET');
+  assert(r.j.covers.map((c) => c.code).join() === 'RACE,T2428', r.j.covers.map((c) => c.code).join());
+  assert(r.j.skipped.sort().join() === 'BAD.json,t9.json', r.j.skipped.join());
+}));
+check('API：刪除＝移進 .bak；再刪 404；讀不存在的 404', withApi(async ({ call, dir, express, createRouter }) => {
+  let r = await call('DELETE', 'RACE');
+  assert(r.status === 200 && !fs.existsSync(path.join(dir, 'RACE.json')), 'still there');
+  assert(fs.readdirSync(path.join(dir, '.bak')).some((f) => f.startsWith('RACE.json-') && f.endsWith('.deleted.bak')), 'not in .bak');
+  r = await call('DELETE', 'RACE');
+  assert(r.status === 404, String(r.status));
+  r = await call('GET', 'RACE');
+  assert(r.status === 404, String(r.status));
+}));
+check('API：資料夾不存在＝空清單（回灌不重建資料夾，由第一次寫入惰性建立）', withApi(async ({ call, dir, express, createRouter }) => {
+  const s2 = express();
+  s2.use('/x', createRouter({ dataDir: path.join(dir, 'nope', 'deeper') }));
+  const srv = await new Promise((r) => { const s = s2.listen(0, () => r(s)); });
+  const j = await (await fetch(`http://127.0.0.1:${srv.address().port}/x/covers`)).json();
+  srv.close();
+  assert(j.ok && j.covers.length === 0 && !fs.existsSync(path.join(dir, 'nope')), JSON.stringify(j));
+}));
 
-checkApi().then(() => {
+runChecks().then(() => {
+  if (api && api.server) {
+    api.server.close();
+    fs.rmSync(api.dir, { recursive: true, force: true });
+  }
   console.log(fails ? `\n${fails} / ${n} FAIL` : `\nall ${n} checks passed`);
   process.exit(fails ? 1 : 0);
 });
